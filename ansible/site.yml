@@ -1,0 +1,59 @@
+---
+- name: Setup Yii2 Application Environment
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Update apt packages
+      apt:
+        update_cache: yes
+
+    - name: Install essential packages
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+          - nginx
+          - git
+          - php
+          - php-mysql
+        state: present
+
+    - name: Start and enable Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Start and enable NGINX service
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Initialize Docker Swarm
+      shell: docker swarm init
+      ignore_errors: yes
+
+    - name: Copy NGINX reverse proxy config
+      copy:
+        src: ../nginx/yii2.conf
+        dest: /etc/nginx/conf.d/yii2.conf
+
+    - name: Reload NGINX
+      service:
+        name: nginx
+        state: reloaded
+
+    - name: Deploy Node Exporter for monitoring
+      shell: |
+        docker service create \
+          --name node_exporter \
+          --publish 9100:9100 \
+          --mode global \
+          prom/node-exporter
+
+    - name: Deploy Yii2 App Docker Service
+      shell: |
+        docker service create --name yii2_app --publish 8080:80 yourdockerhub/yii2-app:latest
+      ignore_errors: yes
